@@ -67,15 +67,21 @@ export function Footer() {
           <p>
             &copy; {year} Hempire. All rights reserved.
           </p>
-          <p className="text-smoke">
-            Built by{" "}
+          <p className="flex items-center gap-1.5 text-smoke">
+            <span>Built by</span>
             <a
               href="https://www.bashsquad.com/"
               target="_blank"
               rel="noreferrer noopener"
-              className="underline-offset-4 transition-colors hover:text-bone hover:underline"
+              aria-label="Built by Bash Squad"
+              className="group inline-flex items-center gap-1 opacity-80 transition-opacity hover:opacity-100"
             >
-              Bash Squad
+              <span aria-hidden className="font-bold text-[#b5e853]">
+                &gt;
+              </span>
+              <span className="font-semibold tracking-tight text-bone/90 group-hover:text-bone">
+                bash squad
+              </span>
             </a>
           </p>
         </div>

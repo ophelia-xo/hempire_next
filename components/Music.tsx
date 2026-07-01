@@ -58,8 +58,8 @@ export function Music() {
 
             <iframe
               title={`Bandcamp player for ${album.title} by Hempire`}
-              className="mt-8 block h-[42px] w-full overflow-hidden rounded-lg border border-edge"
-              src={`https://bandcamp.com/EmbeddedPlayer/album=${album.bandcampAlbumId}/size=small/bgcol=0a0a0b/linkcol=ff7a1a/transparent=true/`}
+              className="mt-8 block h-[120px] w-full overflow-hidden rounded-lg border border-edge"
+              src={`https://bandcamp.com/EmbeddedPlayer/album=${album.bandcampAlbumId}/size=large/bgcol=0a0a0b/linkcol=ff7a1a/artwork=small/tracklist=false/transparent=true/`}
               seamless
               loading="lazy"
             />

@@ -1,13 +1,8 @@
 import Image from "next/image";
 import wordmark from "@/public/images/wordmark.png";
 import { site, socials } from "@/data/site";
-import { Button } from "@/components/ui/Button";
-import {
-  InstagramIcon,
-  FacebookIcon,
-  BandcampIcon,
-  MailIcon,
-} from "@/components/icons";
+import { CopyEmail } from "@/components/ui/CopyEmail";
+import { InstagramIcon, FacebookIcon, BandcampIcon } from "@/components/icons";
 
 const channels = [
   { label: "Instagram", href: socials.instagram, Icon: InstagramIcon },
@@ -40,10 +35,7 @@ export function Contact() {
         </p>
 
         <div className="mt-8 flex justify-center">
-          <Button href={`mailto:${site.email}`} variant="primary" size="lg">
-            <MailIcon className="text-lg" />
-            {site.email}
-          </Button>
+          <CopyEmail email={site.email} />
         </div>
 
         <div className="mt-12 flex items-center justify-center gap-4">
