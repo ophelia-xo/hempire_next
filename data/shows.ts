@@ -24,16 +24,15 @@ export const shows: Show[] = [
     date: "2026-07-31",
     venue: "Sly Grog Lounge",
     city: "Asheville, NC",
-    note: "271 Haywood St",
+    note: "with Broadslab",
     ticketUrl: "https://theslygrogavl.com/",
   },
   {
-    id: "avl-sounds-fest-2026-08-06",
-    date: "2026-08-06",
+    id: "avl-sounds-fest-2026-08-08",
+    date: "2026-08-08",
     venue: "AVL Sounds Fest",
     city: "Asheville, NC",
-    note: "Aug 6 to 9 / multi-venue festival",
-    ticketUrl:
-      "https://www.etix.com/ticket/p/36960932/avl-sounds-fest-asheville-avl-sounds-fest",
+    note: "Aug 6-9 / multi-venue festival",
+    ticketUrl: "https://www.etix.com/ticket/p/36960932/avl-sounds-fest-asheville-avl-sounds-fest",
   },
 ];
