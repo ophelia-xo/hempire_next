@@ -10,6 +10,12 @@ hands-off once set up. To add/change/remove a show, just edit the calendar event
 It reads the calendar through its **secret iCal link** — a private URL that
 returns the events. No Google Cloud project or service account required.
 
+Rather than blindly copying calendar text, the sync runs a **Claude web-research
+pass**: it looks up each show's proper venue name, city, and ticket link (the way
+you'd do by hand), keeps whatever is already verified in `data/shows.ts`, skips
+holds/tentatives, and writes a short **notes** list of anything you should check —
+shown in the Actions run summary and the commit message.
+
 ## One-time setup (~5 min)
 
 ### 1. Get the calendar's secret iCal URL
@@ -60,21 +66,23 @@ First, events are **filtered** down to real, confirmed shows. An event is droppe
   tour" or "hold for …" never goes live, or
 - it's cancelled, declined, or in the past.
 
-With smart parsing on, Claude does a second pass and skips anything that still
+Then Claude researches the survivors (see below) and skips anything that still
 looks tentative rather than a booked gig.
 
-Each surviving event becomes one show:
+Each surviving event becomes one show. Claude **web-searches** to fill these in
+properly rather than copying raw calendar text:
 
 - **Event date** → `date`
-- **Event title** → `venue` (the place name)
-- **Event location** → `city` ("City, ST")
-- **Event description** → `note` (short extra, e.g. "with The Doomed") and any
-  ticket link → `ticketUrl`. No link = shown as "Free".
+- Correct public **venue name** → `venue` (e.g. "Sly Grog Lounge", not "slygrog")
+- The venue's **city** → `city` ("City, ST")
+- A short extra (support act, festival) → `note`
+- The real **ticket/event URL** it can verify → `ticketUrl`. None found = "Free".
 
-Tips for clean results:
-- Put the **venue name in the event title**, the **city/address in the location** field.
-- Paste the **ticket URL** into the description. Leave it out for free / door shows.
-- Events with no usable venue or city are skipped (so nothing half-formed goes live).
+Because it's fed the current `data/shows.ts`, **anything you've already got right
+is kept** — the calendar only drives new shows and changes. You barely need to
+format the calendar events; cleaner titles/locations just mean fewer web searches.
+Anything ambiguous (couldn't find tickets, venue mismatch, a new show) lands in the
+**notes** in the run summary + commit message, so you know what to spot-check.
 
 ## Changing the schedule
 
@@ -90,7 +98,7 @@ Edit the `cron` line in `.github/workflows/sync-shows.yml`. It's UTC.
 ```bash
 export ICS_URL="https://calendar.google.com/calendar/ical/.../basic.ics"
 export SHOW_ORGANIZER_EMAILS="hempirerocks@gmail.com"
-export ANTHROPIC_API_KEY="sk-ant-..."   # optional
+export ANTHROPIC_API_KEY="sk-ant-..."   # enables the web-research pass
 npm install --no-save @anthropic-ai/sdk
 DRY_RUN=1 node scripts/sync-shows.mjs    # prints result, writes nothing
 ```

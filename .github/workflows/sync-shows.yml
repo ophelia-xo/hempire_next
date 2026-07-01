@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -46,7 +46,12 @@ jobs:
             git config user.name "hempire-bot"
             git config user.email "actions@github.com"
             git add data/shows.ts
-            git commit -m "chore: sync shows from calendar"
+            # The script writes a commit message (with any notes) to this file.
+            if [[ -f scripts/.sync-commit-msg.txt ]]; then
+              git commit -F scripts/.sync-commit-msg.txt
+            else
+              git commit -m "chore: sync shows from calendar"
+            fi
             git push
             echo "Pushed updated shows.ts"
           else
