@@ -1,67 +1,90 @@
 # Hempire
+
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## Description
-A Next.js web application that presents a rock and roll band based out of Boone, NC. It showcases upcoming shows, available merchandise, and a contact page to connect with the band for booking.
+The official website for Hempire, a rock and roll band out of Asheville, North
+Carolina. A single-page site that puts the shows, the new record, and the merch
+front and center, wrapped in a gritty black-and-white live-music look.
 
-## Table of Contents
-- [User Story](#user-story)
-- [Getting Started](#getting-started)
-- [Media](#media)
-- [Link](#link)
-- [License](#license)
-- [Contributing](#contributing)
-- [Questions](#questions)
-- [Credits](#credits)
+## Stack
 
-## User Story
+- [Next.js 15](https://nextjs.org/) (App Router, TypeScript)
+- [Tailwind CSS 4](https://tailwindcss.com/)
+- Fonts: Anton (display) and Inter (body) via `next/font`
+- [Vercel Analytics](https://vercel.com/analytics)
+
+## Getting started
+
+```bash
+npm install
+npm run dev
 ```
-AS A local band
-I WANT to be able to showcase my merchandise and upcoming shows
-SO THAT I can market myself and have a central hub for my fans to access
+
+Open [http://localhost:3000](http://localhost:3000).
+
+```bash
+npm run build   # production build
+npm run start   # serve the production build
+npm run lint    # eslint
 ```
-## Getting Started
 
-Please fork this repository over to your local system. Then follow these steps below to initialize the npm modules and necessary seeds for the database.
+## Updating content
 
-1. Open your command line and ensure that you are in the root of this repository. Then type in the following prompts in this order:
+All of the content lives in `/data` so nothing is buried in components. Edit a
+file, save, redeploy.
 
-- `npm init`
-- `npm install`
+| File | What it holds |
+| --- | --- |
+| `data/site.ts` | Band name, tagline, location, booking email, social links, nav |
+| `data/shows.ts` | Upcoming shows. Past dates drop off automatically |
+| `data/album.ts` | The featured record and its Bandcamp embed id |
+| `data/merch.ts` | Merch grid (kept in sync with the Bandcamp store) |
+| `data/members.ts` | Band members |
 
-2. Run the development server:
+### Adding a show
 
--`npm run dev`
+Add an entry to `data/shows.ts`:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```ts
+{
+  id: "unique-slug",
+  date: "2026-09-12",           // ISO date, sorts and formats itself
+  venue: "The Grey Eagle",
+  city: "Asheville, NC",
+  note: "with a friend",        // optional
+  ticketUrl: "https://...",     // null for a free / at-the-door show
+}
+```
 
-## Media
+Shows in the past are hidden and the soonest one is surfaced in the hero. If the
+list is empty the Shows section shows a friendly "no shows yet" state.
 
+### Bandcamp embed ids
 
-## Deployed Application
+The album player uses the numeric id from Bandcamp's `EmbeddedPlayer` URL, not
+the album page id. To find it, open the album page source and look for
+`EmbeddedPlayer/v=2/album=NNNNN`.
 
+## Project structure
+
+```
+app/          layout, page, global styles, favicons
+components/    section components (Hero, Shows, Music, Merch, ...) + ui/ + icons
+data/         all editable content
+lib/          small helpers (class names, date formatting)
+public/images album art, band photos, merch shots, wordmark
+```
+
+## Accessibility
+
+Built to be usable by everyone: semantic landmarks, a skip link, visible focus
+states, keyboard-friendly navigation, alt text on imagery, and respect for
+`prefers-reduced-motion`. Lighthouse: Accessibility 100, SEO 100.
 
 ## License
-This application is licensed under the MIT license. Please click on the link below to learn more.
 
-https://opensource.org/licenses/MIT
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-## Questions
-
-Please direct any questions about this project to olivelliott48@gmail.com. If you would like to see more projects, visit the GitHub link below.
-
-https://www.github.com/olivelliott
+MIT. See [LICENSE](./LICENSE).
 
 ## Credits
 
-
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Built by [Bash Squad](https://www.bashsquad.com/).
