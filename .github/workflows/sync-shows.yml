@@ -1,0 +1,54 @@
+name: Sync shows from calendar
+
+on:
+  schedule:
+    # 12:00 UTC daily (~8am ET). Adjust if you want.
+    - cron: "0 12 * * *"
+  workflow_dispatch: {} # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write # needed to commit the updated data/shows.ts
+
+concurrency:
+  group: sync-shows
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install sync dependencies
+        # Only the Anthropic SDK — the iCal feed is fetched with built-in fetch.
+        # Installed only for this job; the site's package.json is untouched.
+        run: npm install --no-save @anthropic-ai/sdk
+
+      - name: Run sync script
+        env:
+          # The calendar's "Secret address in iCal format".
+          ICS_URL: ${{ secrets.ICS_URL }}
+          # Only events organized by these addresses become shows — keeps your
+          # personal calendar events off the public site. Comma-separated.
+          SHOW_ORGANIZER_EMAILS: ${{ secrets.SHOW_ORGANIZER_EMAILS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/sync-shows.mjs
+
+      - name: Commit and push if changed
+        run: |
+          if [[ -n "$(git status --porcelain data/shows.ts)" ]]; then
+            git config user.name "hempire-bot"
+            git config user.email "actions@github.com"
+            git add data/shows.ts
+            git commit -m "chore: sync shows from calendar"
+            git push
+            echo "Pushed updated shows.ts"
+          else
+            echo "No changes to shows.ts"
+          fi
