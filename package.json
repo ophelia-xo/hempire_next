@@ -2,12 +2,15 @@
   "name": "hempire",
   "version": "1.0.0",
   "private": true,
-  "description": "Official website for Hempire, a stoner rock band out of Boone, NC.",
+  "description": "Official website for Hempire, a rock and roll band based in Asheville, NC.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
+  },
+  "engines": {
+    "node": "22.x"
   },
   "dependencies": {
     "@vercel/analytics": "^1",
