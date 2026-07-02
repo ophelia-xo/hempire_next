@@ -42,10 +42,11 @@ jobs:
 
       - name: Commit and push if changed
         run: |
-          if [[ -n "$(git status --porcelain data/shows.ts)" ]]; then
+          # shows.ts is the site data; the state file is the change-guard fingerprint.
+          if [[ -n "$(git status --porcelain data/shows.ts scripts/shows-sync-state.json)" ]]; then
             git config user.name "hempire-bot"
             git config user.email "actions@github.com"
-            git add data/shows.ts
+            git add data/shows.ts scripts/shows-sync-state.json
             # The script writes a commit message (with any notes) to this file.
             if [[ -f scripts/.sync-commit-msg.txt ]]; then
               git commit -F scripts/.sync-commit-msg.txt
@@ -53,7 +54,7 @@ jobs:
               git commit -m "chore: sync shows from calendar"
             fi
             git push
-            echo "Pushed updated shows.ts"
+            echo "Pushed updated shows"
           else
-            echo "No changes to shows.ts"
+            echo "No changes"
           fi

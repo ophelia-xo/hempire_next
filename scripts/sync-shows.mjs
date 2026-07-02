@@ -33,16 +33,20 @@
  *   ANTHROPIC_API_KEY      (required for smart parse) enables Claude + web search
  *   ANTHROPIC_MODEL        (optional) model id, default "claude-sonnet-5"
  *   LOOKAHEAD_DAYS         (optional) how far ahead to look, default 365
+ *   FORCE                  (optional) "1" runs the research pass even if the
+ *                          calendar is unchanged (a manual "Run workflow" also forces)
  *   DRY_RUN                (optional) "1" prints result, does not write files
  */
 
 import { writeFile, readFile, appendFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SHOWS_PATH = join(__dirname, "..", "data", "shows.ts");
 const COMMIT_MSG_PATH = join(__dirname, ".sync-commit-msg.txt");
+const STATE_PATH = join(__dirname, "shows-sync-state.json");
 const LOOKAHEAD_DAYS = Number(process.env.LOOKAHEAD_DAYS || 365);
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
 const DRY_RUN = process.env.DRY_RUN === "1";
@@ -148,6 +152,17 @@ function toISODate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
+}
+
+/**
+ * Stable fingerprint of exactly what the research pass will see. If it matches
+ * the last run's, the calendar didn't change and we skip the (paid) LLM call.
+ */
+export function eventsSignature(events) {
+  const stable = events
+    .map((e) => `${e.date}|${e.title}|${e.location}|${e.description}|${e.organizerEmail}`)
+    .sort();
+  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
 /**
@@ -445,6 +460,29 @@ async function emitNotes(notes, showCount) {
 async function main() {
   const { events, skippedOtherOrganizer } = await fetchEvents();
 
+  // Change guard: skip the research pass when the calendar hasn't changed.
+  // A manual "Run workflow" (or FORCE=1) always forces a full pass.
+  const signature = eventsSignature(events);
+  const force = process.env.FORCE === "1" || process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
+  let priorState = {};
+  try {
+    priorState = JSON.parse(await readFile(STATE_PATH, "utf8"));
+  } catch {}
+  const signatureChanged = priorState.signature !== signature;
+
+  if (!DRY_RUN && !force && !signatureChanged) {
+    console.error("sync-shows: calendar unchanged since last sync — skipping research pass");
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      try {
+        await appendFile(
+          process.env.GITHUB_STEP_SUMMARY,
+          "### 🎸 Shows sync\n\nCalendar unchanged — nothing to do.\n\n"
+        );
+      } catch {}
+    }
+    return;
+  }
+
   let currentTs = "";
   try {
     currentTs = await readFile(SHOWS_PATH, "utf8");
@@ -491,8 +529,19 @@ async function main() {
     return;
   }
 
+  // Advance the fingerprint so an unchanged calendar skips next time.
+  if (signatureChanged) {
+    try {
+      await writeFile(
+        STATE_PATH,
+        JSON.stringify({ signature, updatedAt: new Date().toISOString() }, null, 2) + "\n",
+        "utf8"
+      );
+    } catch {}
+  }
+
   if (currentTs.trim() === next.trim()) {
-    console.error("sync-shows: no changes");
+    console.error("sync-shows: no changes to shows.ts");
     return;
   }
   await writeFile(SHOWS_PATH, next, "utf8");

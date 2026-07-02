@@ -84,14 +84,23 @@ format the calendar events; cleaner titles/locations just mean fewer web searche
 Anything ambiguous (couldn't find tickets, venue mismatch, a new show) lands in the
 **notes** in the run summary + commit message, so you know what to spot-check.
 
-## Changing the schedule
+## How often it runs (and the change guard)
 
-Edit the `cron` line in `.github/workflows/sync-shows.yml`. It's UTC.
-`0 12 * * *` = daily at 12:00 UTC. `0 */6 * * *` = every 6 hours.
+It runs **daily** (`cron: "0 12 * * *"`, ~8am ET), but it's cheap: each run
+fingerprints the calendar and **only spends the Claude web-research pass — and
+only makes a commit — when the calendar actually changed** since last time
+(tracked in `scripts/shows-sync-state.json`). Unchanged days are a ~10-second
+no-op. So a new show goes live within a day, but you're not paying for or
+committing anything on quiet days.
+
+- **Manual "Run workflow"** always forces a full research pass, even if nothing
+  changed — handy to refresh on demand.
+- **Change the frequency:** edit the `cron` line (UTC). `0 12 * * 1` = weekly on
+  Mondays; `0 */6 * * *` = every 6 hours. Since the guard makes runs cheap,
+  daily is a good default.
 
 > Note: Google's secret iCal feed can lag real edits by up to a few hours, so a
-> daily (or even hourly) sync is plenty — the feed itself is the slow part, not
-> the Action.
+> daily sync is plenty — the feed itself is the slow part, not the Action.
 
 ## Running locally (optional)
 
