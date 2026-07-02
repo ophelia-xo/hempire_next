@@ -2,41 +2,51 @@ import Image from "next/image";
 import { merch } from "@/data/merch";
 import { socials } from "@/data/site";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { Reveal } from "@/components/Reveal";
 import { Button } from "@/components/ui/Button";
 import { ArrowUpRight, BandcampIcon } from "@/components/icons";
 
 export function Merch() {
   return (
-    <section id="merch" className="scroll-mt-20 bg-coal py-20 sm:py-28">
-      <div className="shell">
-        <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-          <SectionHeading
-            kicker="Merch"
-            title="Wear It Loud"
-            description="Tees, koozies, patches, and the new record. Everything ships through Bandcamp, or grab it from the merch table at a show."
-          />
-          <Button
-            href={socials.bandcamp}
-            external
-            variant="primary"
-            className="self-start sm:self-auto"
-          >
-            <BandcampIcon className="text-lg" />
-            Shop on Bandcamp
-          </Button>
-        </div>
+    <section
+      id="merch"
+      className="relative scroll-mt-20 overflow-hidden bg-coal py-20 sm:py-28"
+    >
+      <span aria-hidden className="ghost-word">
+        Wear
+      </span>
+
+      <div className="shell relative">
+        <Reveal>
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <SectionHeading
+              kicker="Merch"
+              title="Wear It Loud"
+              description="Tees, koozies, patches, and the new record. Everything ships through Bandcamp, or grab it from the merch table at a show."
+            />
+            <Button
+              href={socials.bandcamp}
+              external
+              variant="primary"
+              className="self-start sm:self-auto"
+            >
+              <BandcampIcon className="text-lg" />
+              Shop on Bandcamp
+            </Button>
+          </div>
+        </Reveal>
 
         <ul className="mt-12 grid grid-cols-2 gap-5 sm:grid-cols-3 sm:gap-6">
-          {merch.map((item) => (
-            <li key={item.name}>
+          {merch.map((item, i) => (
+            <Reveal as="li" key={item.name} delay={(i % 3) * 90}>
               <a
                 href={item.href}
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={`${item.name}, ${item.price}, on Bandcamp`}
-                className="group block"
+                className="group block transition-transform duration-300 ease-out hover:-translate-y-1.5"
               >
-                <div className="relative grain aspect-square overflow-hidden rounded-xl border border-edge bg-ink">
+                <div className="relative grain aspect-square overflow-hidden rounded-xl border border-edge bg-ink transition-[border-color,box-shadow] duration-300 group-hover:border-ember/50 group-hover:shadow-[0_20px_50px_-16px_rgba(255,122,26,0.25)]">
                   <Image
                     src={item.photo}
                     alt={item.alt}
@@ -45,7 +55,7 @@ export function Merch() {
                     placeholder="blur"
                     className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-ink/70 text-bone opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="absolute right-3 top-3 flex h-9 w-9 translate-y-1 items-center justify-center rounded-full bg-ink/70 text-bone opacity-0 backdrop-blur-sm transition-[opacity,transform] duration-300 group-hover:translate-y-0 group-hover:opacity-100">
                     <ArrowUpRight className="text-base" />
                   </div>
                 </div>
@@ -56,7 +66,7 @@ export function Merch() {
                   </span>
                 </div>
               </a>
-            </li>
+            </Reveal>
           ))}
         </ul>
       </div>

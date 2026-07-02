@@ -16,7 +16,7 @@ type ButtonLinkProps = {
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-ember text-ink hover:bg-ember-bright border border-ember hover:border-ember-bright",
+    "bg-ember text-ink hover:bg-ember-bright border border-ember hover:border-ember-bright hover:shadow-[0_0_28px_rgba(255,122,26,0.4)]",
   outline:
     "border border-edge text-bone hover:border-bone hover:bg-bone/5",
   ghost: "text-bone hover:text-ember",
@@ -48,7 +48,7 @@ export function Button({
       {...rest}
       className={cn(
         "group inline-flex items-center justify-center gap-2 rounded-full font-semibold uppercase tracking-wider",
-        "transition-[background-color,border-color,color,transform] duration-200 ease-out active:translate-y-px",
+        "transition-[background-color,border-color,color,transform,box-shadow] duration-200 ease-out active:translate-y-px",
         variants[variant],
         sizes[size],
         className,

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import wordmark from "@/public/images/wordmark.png";
 import { site, socials, navLinks } from "@/data/site";
-import { InstagramIcon, FacebookIcon, BandcampIcon } from "@/components/icons";
+import { ArrowUpIcon, InstagramIcon, FacebookIcon, BandcampIcon } from "@/components/icons";
 
 const channels = [
   { label: "Instagram", href: socials.instagram, Icon: InstagramIcon },
@@ -13,7 +13,16 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-edge bg-ink">
+    <footer className="relative overflow-hidden border-t border-edge bg-ink">
+      {/* Giant outlined sign-off, edge to edge like the back of a tour tee */}
+      <div
+        aria-hidden
+        className="pointer-events-none select-none pt-10 text-center font-display uppercase leading-[0.8] text-outline"
+        style={{ fontSize: "clamp(4rem, 15vw, 14rem)" }}
+      >
+        Hempire
+      </div>
+
       <div className="shell py-14">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
@@ -55,7 +64,7 @@ export function Footer() {
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={`Hempire on ${label}`}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-edge text-bone transition-colors hover:border-ember hover:text-ember"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-edge text-bone transition-all duration-300 hover:-translate-y-0.5 hover:border-ember hover:text-ember"
               >
                 <Icon className="text-xl" />
               </a>
@@ -63,27 +72,34 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-2 border-t border-edge pt-6 text-xs text-smoke sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            &copy; {year} Hempire. All rights reserved.
-          </p>
-          <p className="flex items-center gap-1.5 text-smoke">
-            <span>Built by</span>
+        <div className="mt-12 flex flex-col gap-4 border-t border-edge pt-6 text-xs text-smoke sm:flex-row sm:items-center sm:justify-between">
+          <p>&copy; {year} Hempire. All rights reserved.</p>
+          <div className="flex items-center gap-5">
+            <p className="flex items-center gap-1.5 text-smoke">
+              <span>Built by</span>
+              <a
+                href="https://www.bashsquad.com/"
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Built by Bash Squad"
+                className="group inline-flex items-center gap-1 opacity-80 transition-opacity hover:opacity-100"
+              >
+                <span aria-hidden className="font-bold text-[#b5e853]">
+                  &gt;
+                </span>
+                <span className="font-semibold tracking-tight text-bone/90 group-hover:text-bone">
+                  bash squad
+                </span>
+              </a>
+            </p>
             <a
-              href="https://www.bashsquad.com/"
-              target="_blank"
-              rel="noreferrer noopener"
-              aria-label="Built by Bash Squad"
-              className="group inline-flex items-center gap-1 opacity-80 transition-opacity hover:opacity-100"
+              href="#top"
+              className="group inline-flex items-center gap-1.5 font-semibold uppercase tracking-wider text-smoke transition-colors hover:text-ember"
             >
-              <span aria-hidden className="font-bold text-[#b5e853]">
-                &gt;
-              </span>
-              <span className="font-semibold tracking-tight text-bone/90 group-hover:text-bone">
-                bash squad
-              </span>
+              Back to top
+              <ArrowUpIcon className="text-sm transition-transform group-hover:-translate-y-0.5" />
             </a>
-          </p>
+          </div>
         </div>
       </div>
     </footer>

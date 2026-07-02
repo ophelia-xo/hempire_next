@@ -20,10 +20,14 @@
 
   /* Type */
   --font-display: var(--font-anton), "Arial Narrow", system-ui, sans-serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
 
   /* Motion */
   --animate-marquee: marquee 60s linear infinite;
+  --animate-marquee-reverse: marquee-reverse 80s linear infinite;
+  --animate-cue: cue 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  --animate-breathe: breathe 7s ease-in-out infinite;
+  --animate-spin-slow: rotate 9s linear infinite;
 }
 
 /* ------------------------------------------------------------------ *
@@ -35,6 +39,8 @@
     /* offset anchored sections for the fixed header */
     scroll-padding-top: 4.5rem;
     -webkit-text-size-adjust: 100%;
+    /* Firefox scrollbar, tuned to the theme */
+    scrollbar-color: var(--color-edge) var(--color-ink);
   }
 
   body {
@@ -44,6 +50,22 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
+  }
+
+  /* WebKit scrollbar, same treatment */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-ink);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-edge);
+    border-radius: 5px;
+    border: 2px solid var(--color-ink);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ember-deep);
   }
 
   ::selection {
@@ -119,6 +141,29 @@
   font-size: clamp(2.5rem, 7vw, 5.25rem);
 }
 
+/* Outlined "ghost" type, transparent fill with a hairline stroke */
+@utility text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1px rgb(244 240 230 / 0.14);
+}
+
+/* Enormous background word pinned to a section corner. Decorative only. */
+@utility ghost-word {
+  position: absolute;
+  top: 0.5rem;
+  right: -0.06em;
+  z-index: 0;
+  font-family: var(--font-display);
+  font-size: clamp(7rem, 24vw, 22rem);
+  line-height: 0.8;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px rgb(244 240 230 / 0.06);
+  pointer-events: none;
+  user-select: none;
+}
+
 /* Hairline texture for film-grain / poster grit */
 @utility grain {
   &::after {
@@ -129,6 +174,76 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     opacity: 0.05;
     mix-blend-mode: overlay;
+  }
+}
+
+/* A record sleeve's worth of vinyl, drawn in CSS. Slides out on hover. */
+@utility vinyl {
+  border-radius: 9999px;
+  background:
+    radial-gradient(
+      circle at center,
+      var(--color-ember-deep) 0 10%,
+      #050505 10.5% 12.5%,
+      transparent 13%
+    ),
+    /* a streak of light across the grooves so the disc reads in the dark */
+      linear-gradient(
+        145deg,
+        transparent 30%,
+        rgb(244 240 230 / 0.05) 45%,
+        transparent 60%
+      ),
+    repeating-radial-gradient(
+      circle at center,
+      #131316 0 2.5px,
+      #26262c 3px 5.5px
+    );
+  box-shadow:
+    0 0 0 1px rgb(244 240 230 / 0.12),
+    0 24px 60px -12px rgb(0 0 0 / 0.8);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Motion system
+ * ------------------------------------------------------------------ */
+@layer components {
+  /* Entrance for the hero, pure CSS so it runs without JS.
+     Stagger with a --d custom property. */
+  .hero-rise {
+    opacity: 0;
+    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: var(--d, 0s);
+  }
+
+  /* Slow settle on the hero photo, cinema-style */
+  .hero-zoom {
+    animation: hero-zoom 7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Mobile menu items cascade in each time the menu opens */
+  .menu-rise {
+    opacity: 0;
+    animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: var(--d, 0s);
+  }
+
+  /* Scroll-triggered reveals, driven by a tiny IntersectionObserver.
+     Hidden state only applies when JS is running and the visitor is
+     fine with motion; otherwise content is simply visible. */
+  @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+    .reveal {
+      opacity: 0;
+      transform: translateY(26px);
+      transition:
+        opacity 0.7s ease,
+        transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+      transition-delay: var(--reveal-delay, 0ms);
+    }
+    .reveal.is-visible {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
@@ -154,6 +269,68 @@ body::after {
   }
   to {
     transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-reverse {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hero-zoom {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Scroll cue: a spark of ember running down a hairline */
+@keyframes cue {
+  0% {
+    transform: translateY(-100%);
+  }
+  65% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* Slow opacity breathe for watermarks */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.04;
+  }
+  50% {
+    opacity: 0.08;
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 

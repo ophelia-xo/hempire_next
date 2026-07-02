@@ -28,6 +28,46 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
+ * Inline copy-to-clipboard email link for use mid-sentence. Same behavior as
+ * CopyEmail, sized to flow with the surrounding text.
+ */
+export function CopyEmailInline({ email }: { email: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const ok = await copyText(email);
+    if (ok) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={`Copy booking email ${email} to clipboard`}
+      className={cn(
+        "inline-flex items-center gap-1.5 align-baseline font-semibold transition-colors",
+        copied
+          ? "text-ember-bright"
+          : "text-ember underline-offset-4 hover:underline",
+      )}
+    >
+      {copied ? (
+        <CheckIcon className="text-sm" />
+      ) : (
+        <CopyIcon className="text-sm" />
+      )}
+      <span>{copied ? "Copied to clipboard" : email}</span>
+      <span aria-live="polite" className="sr-only">
+        {copied ? "Email address copied to clipboard" : ""}
+      </span>
+    </button>
+  );
+}
+
+/**
  * Booking email as a copy-to-clipboard button. Keeps people on the page
  * instead of firing an external mail client, with clear "copied" feedback.
  * The address stays visible so it can always be copied by hand as a last resort.
