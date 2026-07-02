@@ -35,5 +35,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# transient file written by scripts/sync-shows.mjs for the Action commit message
+# shows sync (scripts/sync-shows.mjs): local secrets + transient run files
+scripts/sync-config.local.json
 scripts/.sync-commit-msg.txt
+scripts/.sync-last-fetch.json

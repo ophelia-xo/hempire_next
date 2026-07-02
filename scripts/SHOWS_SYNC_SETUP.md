@@ -1,59 +1,59 @@
 # Auto-syncing shows from the calendar
 
-This repo has a GitHub Action that reads your Google Calendar once a day, updates
-`data/shows.ts`, and pushes the change — which triggers a Vercel deploy. Fully
-hands-off once set up. To add/change/remove a show, just edit the calendar event.
+A **scheduled Claude Code task** (not a GitHub Action) reads your Google Calendar
+daily, updates `data/shows.ts`, and pushes the change — which triggers a Vercel
+deploy. To add/change/remove a show, just edit the calendar event.
 
-- Script: `scripts/sync-shows.mjs`
-- Workflow: `.github/workflows/sync-shows.yml` (daily at 12:00 UTC + manual "Run workflow")
+- Script (deterministic half): `scripts/sync-shows.mjs`
+- Task: `hempire-shows-sync` in Claude Code's scheduled tasks
+  (`~/.claude/scheduled-tasks/hempire-shows-sync/SKILL.md` holds the prompt)
+- Local config: `scripts/sync-config.local.json` (gitignored — holds the secret
+  calendar URL; copy from `sync-config.example.json`)
 
 It reads the calendar through its **secret iCal link** — a private URL that
-returns the events. No Google Cloud project or service account required.
+returns the events. No Google Cloud project, service account, or API key required.
+Because the research pass runs inside a Claude Code session, it's covered by the
+Claude subscription — there is **no separate API billing**.
 
-Rather than blindly copying calendar text, the sync runs a **Claude web-research
-pass**: it looks up each show's proper venue name, city, and ticket link (the way
-you'd do by hand), keeps whatever is already verified in `data/shows.ts`, skips
-holds/tentatives, and writes a short **notes** list of anything you should check —
-shown in the Actions run summary and the commit message.
+Rather than blindly copying calendar text, each run does a **web-research pass**:
+it looks up each show's proper venue name, city, and ticket link (the way you'd
+do by hand), keeps whatever is already verified in `data/shows.ts`, skips
+holds/tentatives, and reports **notes** of anything you should check — in the
+run's session transcript and the commit message.
 
-## One-time setup (~5 min)
+## How a run works
 
-### 1. Get the calendar's secret iCal URL
+1. `node scripts/sync-shows.mjs fetch` — fetches the iCal feed, filters to real
+   upcoming shows, prints them as JSON, and says whether the calendar changed
+   since the last sync (fingerprint in `scripts/shows-sync-state.json`).
+2. If unchanged, the run just health-checks the published ticket links and stops.
+3. Otherwise Claude researches the events (web search: venue names, "City, ST",
+   real ticket URLs), writes the result to a JSON file, and runs
+   `node scripts/sync-shows.mjs write <file>` — which validates, renders
+   `data/shows.ts`, and fails closed on bad input (never degrades the live site).
+4. If `data/shows.ts` changed, the run commits (message from
+   `scripts/.sync-commit-msg.txt`, includes the notes) and pushes. Vercel deploys.
+
+Runs happen while the Claude Code app is open; if it was closed at the scheduled
+time, the task runs on next launch. Each run is a session you can open and read.
+
+## One-time setup (~2 min)
 
 1. Open [Google Calendar](https://calendar.google.com/) on the account that has
-   the shows (your personal calendar).
-2. Left sidebar → hover your calendar → ⋮ → **Settings and sharing**.
-3. Scroll to **Integrate calendar** → copy the **Secret address in iCal format**.
-   It ends in `.ics`. Treat it like a password — anyone with it can read the calendar.
+   the shows → hover your calendar → ⋮ → **Settings and sharing** → scroll to
+   **Integrate calendar** → copy the **Secret address in iCal format** (ends in
+   `.ics`). Treat it like a password — anyone with it can read the calendar.
+2. Paste it as `ICS_URL` in `scripts/sync-config.local.json`, and set
+   `SHOW_ORGANIZER_EMAILS` to the address(es) that **create the show invites**
+   (open a show event and look at who invited you). Only events organized by
+   these become shows; the rest of your calendar is ignored. Comma-separate
+   multiple.
+3. Test: `node scripts/sync-shows.mjs fetch` should print your upcoming shows as
+   JSON. Then either wait for the daily run or ask Claude to run the
+   `hempire-shows-sync` task now.
 
-> Using a dedicated band calendar instead? Same steps, on that calendar. If it's
-> shared to you but you're not the owner, only the owner can see its *secret*
-> address — have them copy it to you (or just use your personal calendar).
-
-### 2. Add GitHub secrets
-
-In the repo on GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
-Add these three:
-
-| Secret name | Value |
-|---|---|
-| `ICS_URL` | The secret iCal URL from step 1.3 |
-| `SHOW_ORGANIZER_EMAILS` | The address(es) that **create the show invites** — i.e. whoever adds you to the events (e.g. `hempirerocks@gmail.com`). Only events organized by these become shows; the rest of your calendar is ignored. Comma-separate multiple. |
-| `ANTHROPIC_API_KEY` | An Anthropic API key ([console.anthropic.com](https://console.anthropic.com/) → API keys). Enables smart parsing of messy event text (~a fraction of a cent per run). |
-
-> **Finding the right organizer email:** open one of your show events in Google
-> Calendar and look at who invited you — that address goes in `SHOW_ORGANIZER_EMAILS`.
-> If shows come from more than one person, list them all comma-separated.
->
 > **Optional extra filtering:** placeholder events are already dropped by title
-> (see below). To drop more, add a `SHOW_EXCLUDE_TITLES` secret with extra
-> comma-separated keywords.
-
-### 3. Test it
-
-1. Repo → **Actions** tab → "Sync shows from calendar" → **Run workflow**.
-2. Watch the run. If green, check `data/shows.ts` — it should reflect your calendar.
-3. Vercel picks up the push and redeploys automatically.
+> (see below). To drop more, add keywords to `SHOW_EXCLUDE_TITLES` in the config.
 
 ## How events map to the site
 
@@ -66,11 +66,8 @@ First, events are **filtered** down to real, confirmed shows. An event is droppe
   tour" or "hold for …" never goes live, or
 - it's cancelled, declined, or in the past.
 
-Then Claude researches the survivors (see below) and skips anything that still
-looks tentative rather than a booked gig.
-
-Each surviving event becomes one show. Claude **web-searches** to fill these in
-properly rather than copying raw calendar text:
+Then Claude researches the survivors and skips anything that still looks
+tentative rather than a booked gig. Each surviving event becomes one show:
 
 - **Event date** → `date`
 - Correct public **venue name** → `venue` (e.g. "Sly Grog Lounge", not "slygrog")
@@ -81,33 +78,26 @@ properly rather than copying raw calendar text:
 Because it's fed the current `data/shows.ts`, **anything you've already got right
 is kept** — the calendar only drives new shows and changes. You barely need to
 format the calendar events; cleaner titles/locations just mean fewer web searches.
-Anything ambiguous (couldn't find tickets, venue mismatch, a new show) lands in the
-**notes** in the run summary + commit message, so you know what to spot-check.
+Anything ambiguous (couldn't find tickets, venue mismatch, a new show) lands in
+the **notes** in the run summary + commit message, so you know what to spot-check.
 
 ## How often it runs (and the change guard)
 
-It runs **daily** (`cron: "0 12 * * *"`, ~8am ET), but it's cheap: each run
-fingerprints the calendar and **only spends the Claude web-research pass — and
-only makes a commit — when the calendar actually changed** since last time
-(tracked in `scripts/shows-sync-state.json`). Unchanged days are a ~10-second
-no-op. So a new show goes live within a day, but you're not paying for or
-committing anything on quiet days.
+Daily at **9:00 AM local time**. Each run fingerprints the calendar and only does
+the research pass — and only commits — when the calendar actually changed since
+last time (tracked in `scripts/shows-sync-state.json`). Unchanged days are a
+quick link health-check and a "nothing to do" report.
 
-- **Manual "Run workflow"** always forces a full research pass, even if nothing
-  changed — handy to refresh on demand.
-- **Change the frequency:** edit the `cron` line (UTC). `0 12 * * 1` = weekly on
-  Mondays; `0 */6 * * *` = every 6 hours. Since the guard makes runs cheap,
-  daily is a good default.
+- **Run on demand:** ask Claude Code to run the `hempire-shows-sync` task.
+- **Change the schedule or prompt:** ask Claude Code to update the
+  `hempire-shows-sync` scheduled task.
 
 > Note: Google's secret iCal feed can lag real edits by up to a few hours, so a
-> daily sync is plenty — the feed itself is the slow part, not the Action.
+> daily sync is plenty — the feed itself is the slow part.
 
-## Running locally (optional)
+## Running the script by hand (optional)
 
 ```bash
-export ICS_URL="https://calendar.google.com/calendar/ical/.../basic.ics"
-export SHOW_ORGANIZER_EMAILS="hempirerocks@gmail.com"
-export ANTHROPIC_API_KEY="sk-ant-..."   # enables the web-research pass
-npm install --no-save @anthropic-ai/sdk
-DRY_RUN=1 node scripts/sync-shows.mjs    # prints result, writes nothing
+node scripts/sync-shows.mjs fetch              # prints filtered events as JSON
+node scripts/sync-shows.mjs write result.json  # {shows:[...],notes:[...]} -> data/shows.ts
 ```

@@ -1,0 +1,7 @@
+{
+  "ICS_URL": "paste the calendar's 'Secret address in iCal format' here (ends in .ics)",
+  "SHOW_ORGANIZER_EMAILS": "booker@example.com,second-booker@example.com",
+  "SHOW_TITLE_MATCH": "",
+  "SHOW_EXCLUDE_TITLES": "",
+  "LOOKAHEAD_DAYS": 365
+}

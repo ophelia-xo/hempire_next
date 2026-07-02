@@ -2,27 +2,30 @@
 /**
  * sync-shows.mjs
  *
- * Keeps data/shows.ts in sync with the band's booking calendar — but instead of
- * a dumb field-copy, it uses Claude *with web search* to research each show the
- * way a human would: proper public venue name, "City, ST", and the real ticket
- * URL. Your already-published shows are fed in as the source of truth, so good
- * hand-verified data is preserved and the calendar only drives changes.
+ * Deterministic half of the shows sync. A scheduled Claude task (see
+ * scripts/SHOWS_SYNC_SETUP.md) drives it in two steps:
  *
- * How it runs (see .github/workflows/sync-shows.yml):
- *   - On a daily cron in GitHub Actions.
- *   - Fetches the calendar's secret iCal feed over plain HTTPS (no service
- *     account, no auth) and parses it.
- *   - Pre-filters to real upcoming shows: known organizer, not a
- *     hold/block/unavailability placeholder, not cancelled, not past.
- *   - Hands those + the current data/shows.ts to Claude, which web-searches to
- *     clean up titles + find ticket links, keeps verified data, skips anything
- *     tentative, and returns a `notes` list of things you should know.
- *   - Writes data/shows.ts only if it changed; the workflow commits + pushes and
- *     Vercel auto-deploys. Notes go to the Actions run summary + commit message.
- *   - On a hard LLM failure it does NOT overwrite shows.ts (never degrades the
- *     live site) and exits non-zero so the failed run notifies you.
+ *   node scripts/sync-shows.mjs fetch
+ *     Fetches the calendar's secret iCal feed, filters to real upcoming shows
+ *     (known organizer, not a hold/placeholder, not cancelled, not past), and
+ *     prints JSON for the research pass:
+ *       { events, skippedOtherOrganizer, signature, signatureChanged }
+ *     Also records the signature in scripts/.sync-last-fetch.json so `write`
+ *     can advance the change guard.
  *
- * Env vars:
+ *   node scripts/sync-shows.mjs write <researched.json>
+ *     Takes the researched result — { shows: [...], notes: [...] } — then
+ *     validates, normalizes, renders data/shows.ts, advances the change-guard
+ *     state (scripts/shows-sync-state.json), and writes the commit message to
+ *     scripts/.sync-commit-msg.txt. Fails closed: bad input writes nothing,
+ *     so the live site never degrades.
+ *
+ * The research itself (venue names, "City, ST", real ticket URLs via web
+ * search) is done by the scheduled Claude task between the two steps — no
+ * API key needed.
+ *
+ * Config: scripts/sync-config.local.json (gitignored; see
+ * scripts/sync-config.example.json), overridable by env vars of the same name.
  *   ICS_URL                (required) the calendar's "Secret address in iCal format"
  *   SHOW_ORGANIZER_EMAILS  (recommended) comma-separated organizer emails whose
  *                          events are shows. Without it, every event is published.
@@ -30,15 +33,10 @@
  *                          text (case-insensitive). OR'd with SHOW_ORGANIZER_EMAILS.
  *   SHOW_EXCLUDE_TITLES    (optional) extra comma-separated title keywords to treat
  *                          as non-shows, added to the built-in list below.
- *   ANTHROPIC_API_KEY      (required for smart parse) enables Claude + web search
- *   ANTHROPIC_MODEL        (optional) model id, default "claude-sonnet-5"
  *   LOOKAHEAD_DAYS         (optional) how far ahead to look, default 365
- *   FORCE                  (optional) "1" runs the research pass even if the
- *                          calendar is unchanged (a manual "Run workflow" also forces)
- *   DRY_RUN                (optional) "1" prints result, does not write files
  */
 
-import { writeFile, readFile, appendFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -47,9 +45,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SHOWS_PATH = join(__dirname, "..", "data", "shows.ts");
 const COMMIT_MSG_PATH = join(__dirname, ".sync-commit-msg.txt");
 const STATE_PATH = join(__dirname, "shows-sync-state.json");
-const LOOKAHEAD_DAYS = Number(process.env.LOOKAHEAD_DAYS || 365);
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
-const DRY_RUN = process.env.DRY_RUN === "1";
+const LAST_FETCH_PATH = join(__dirname, ".sync-last-fetch.json");
+const CONFIG_PATH = join(__dirname, "sync-config.local.json");
 
 /** Title keywords that mark a calendar event as NOT a public show. */
 const DEFAULT_EXCLUDE_TITLES = [
@@ -65,6 +62,28 @@ const DEFAULT_EXCLUDE_TITLES = [
 function fail(msg) {
   console.error("sync-shows: " + msg);
   process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Config: sync-config.local.json, overridable by env vars of the same name.
+// ---------------------------------------------------------------------------
+
+async function loadConfig() {
+  let file = {};
+  try {
+    file = JSON.parse(await readFile(CONFIG_PATH, "utf8"));
+  } catch {}
+  const get = (key) => {
+    const v = process.env[key] ?? file[key] ?? "";
+    return String(v).trim();
+  };
+  return {
+    icsUrl: get("ICS_URL"),
+    organizerEmails: get("SHOW_ORGANIZER_EMAILS"),
+    titleMatch: get("SHOW_TITLE_MATCH"),
+    excludeTitles: get("SHOW_EXCLUDE_TITLES"),
+    lookaheadDays: Number(get("LOOKAHEAD_DAYS")) || 365,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -156,77 +175,13 @@ function toISODate(d) {
 
 /**
  * Stable fingerprint of exactly what the research pass will see. If it matches
- * the last run's, the calendar didn't change and we skip the (paid) LLM call.
+ * the last run's, the calendar didn't change and the task can skip research.
  */
 export function eventsSignature(events) {
   const stable = events
     .map((e) => `${e.date}|${e.title}|${e.location}|${e.description}|${e.organizerEmail}`)
     .sort();
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
-}
-
-/**
- * Fetch the iCal feed and pre-filter to the events worth handing to Claude.
- * Returns { events, skippedOtherOrganizer } where skippedOtherOrganizer is a
- * small sample of upcoming, non-placeholder events dropped only because their
- * organizer isn't allow-listed — surfaced so real shows never vanish silently.
- */
-async function fetchEvents() {
-  const url = process.env.ICS_URL;
-  if (!url) fail("ICS_URL is not set");
-
-  let res;
-  try {
-    res = await fetch(url);
-  } catch (err) {
-    fail("could not fetch ICS_URL: " + err.message);
-  }
-  if (!res.ok) fail(`ICS_URL returned HTTP ${res.status}`);
-  const text = await res.text();
-  const all = parseICS(text);
-
-  const filter = readFilterFromEnv();
-  if (!filter.emails.length && !filter.titleMatch) {
-    console.error(
-      "sync-shows: WARNING — no SHOW_ORGANIZER_EMAILS/SHOW_TITLE_MATCH set; every " +
-        "readable event will be published. Set a filter if this calendar also holds personal events."
-    );
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = toISODate(today);
-  const maxStr = toISODate(new Date(today.getTime() + LOOKAHEAD_DAYS * 86400000));
-
-  const upcoming = all.filter(
-    (e) => e.date && e.date >= todayStr && e.date <= maxStr && (e.status || "") !== "CANCELLED"
-  );
-  const nonPlaceholder = upcoming.filter((e) => !isPlaceholderTitle(e.title, filter.excludeTitles));
-  const kept = nonPlaceholder.filter((e) => passesOrganizer(e, filter));
-
-  const hasAllowList = filter.emails.length > 0 || Boolean(filter.titleMatch);
-  const skippedOtherOrganizer = hasAllowList
-    ? nonPlaceholder.filter((e) => !passesOrganizer(e, filter))
-    : [];
-
-  console.error(
-    `sync-shows: parsed ${all.length} event(s); ${kept.length} kept, ` +
-      `${skippedOtherOrganizer.length} skipped (other organizers)`
-  );
-
-  return {
-    events: kept.map((e) => ({
-      title: e.title || "",
-      location: e.location || "",
-      description: e.description || "",
-      date: e.date,
-      organizerEmail: e.organizerEmail || "",
-    })),
-    skippedOtherOrganizer: skippedOtherOrganizer
-      .slice(0, 8)
-      .map((e) => e.title)
-      .filter(Boolean),
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -237,14 +192,14 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Read the show-event filter from env. Empty allow-list = allow all (warned). */
-export function readFilterFromEnv(env = process.env) {
-  const emails = (env.SHOW_ORGANIZER_EMAILS || "")
+/** Build the show-event filter from config. Empty allow-list = allow all (warned). */
+export function buildFilter(config) {
+  const emails = config.organizerEmails
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  const titleMatch = (env.SHOW_TITLE_MATCH || "").trim().toLowerCase();
-  const extraExclude = (env.SHOW_EXCLUDE_TITLES || "")
+  const titleMatch = config.titleMatch.toLowerCase();
+  const extraExclude = config.excludeTitles
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
@@ -268,103 +223,98 @@ export function passesOrganizer(e, filter) {
   return false;
 }
 
-/**
- * Decide whether a parsed calendar event is one of the band's confirmed shows:
- * not cancelled, not a placeholder title, and organized by a known address.
- */
-export function eventPasses(e, filter) {
-  if ((e.status || "") === "CANCELLED") return false;
-  if (isPlaceholderTitle(e.title, filter.excludeTitles)) return false;
-  return passesOrganizer(e, filter);
+// ---------------------------------------------------------------------------
+// fetch: iCal feed -> filtered events JSON on stdout
+// ---------------------------------------------------------------------------
+
+async function cmdFetch() {
+  const config = await loadConfig();
+  if (!config.icsUrl || /paste|example|your-/i.test(config.icsUrl)) {
+    fail(
+      "ICS_URL is not configured. Paste the calendar's \"Secret address in iCal " +
+        "format\" into scripts/sync-config.local.json (see sync-config.example.json)."
+    );
+  }
+
+  const filter = buildFilter(config);
+  if (!filter.emails.length && !filter.titleMatch) {
+    console.error(
+      "sync-shows: WARNING — no SHOW_ORGANIZER_EMAILS/SHOW_TITLE_MATCH set; every " +
+        "readable event will be published. Set a filter if this calendar also holds personal events."
+    );
+  }
+
+  let res;
+  try {
+    res = await fetch(config.icsUrl);
+  } catch (err) {
+    fail("could not fetch ICS_URL: " + err.message);
+  }
+  if (!res.ok) fail(`ICS_URL returned HTTP ${res.status}`);
+  const all = parseICS(await res.text());
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = toISODate(today);
+  const maxStr = toISODate(new Date(today.getTime() + config.lookaheadDays * 86400000));
+
+  const upcoming = all.filter(
+    (e) => e.date && e.date >= todayStr && e.date <= maxStr && (e.status || "") !== "CANCELLED"
+  );
+  const nonPlaceholder = upcoming.filter((e) => !isPlaceholderTitle(e.title, filter.excludeTitles));
+  const kept = nonPlaceholder.filter((e) => passesOrganizer(e, filter));
+
+  const hasAllowList = filter.emails.length > 0 || Boolean(filter.titleMatch);
+  const skippedOtherOrganizer = hasAllowList
+    ? nonPlaceholder.filter((e) => !passesOrganizer(e, filter))
+    : [];
+
+  const events = kept.map((e) => ({
+    title: e.title || "",
+    location: e.location || "",
+    description: e.description || "",
+    date: e.date,
+    organizerEmail: e.organizerEmail || "",
+  }));
+
+  const signature = eventsSignature(events);
+  let priorState = {};
+  try {
+    priorState = JSON.parse(await readFile(STATE_PATH, "utf8"));
+  } catch {}
+
+  // Recorded so `write` can advance the change guard after the research pass.
+  await writeFile(
+    LAST_FETCH_PATH,
+    JSON.stringify({ signature, fetchedAt: new Date().toISOString() }, null, 2) + "\n",
+    "utf8"
+  );
+
+  console.error(
+    `sync-shows: parsed ${all.length} event(s); ${events.length} kept, ` +
+      `${skippedOtherOrganizer.length} skipped (other organizers)`
+  );
+
+  process.stdout.write(
+    JSON.stringify(
+      {
+        signature,
+        signatureChanged: priorState.signature !== signature,
+        events,
+        skippedOtherOrganizer: skippedOtherOrganizer
+          .slice(0, 8)
+          .map((e) => e.title)
+          .filter(Boolean),
+      },
+      null,
+      2
+    ) + "\n"
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Event text -> Show fields
+// write: researched JSON -> data/shows.ts (+ state + commit message)
 // ---------------------------------------------------------------------------
-
-/** Deterministic fallback: best-effort field extraction with no LLM. */
-export function parseDeterministic(events) {
-  return events.map((e) => {
-    const loc = e.location || "";
-    // Heuristic: "Venue, 123 St, City, ST" -> city = last two comma parts.
-    const parts = loc.split(",").map((s) => s.trim()).filter(Boolean);
-    let city = "";
-    if (parts.length >= 2) city = parts.slice(-2).join(", ");
-    else if (parts.length === 1) city = parts[0];
-    const urlMatch = (e.description + " " + loc).match(/https?:\/\/\S+/);
-    return {
-      date: e.date,
-      venue: e.title || parts[0] || "",
-      city,
-      note: undefined,
-      ticketUrl: urlMatch ? urlMatch[0].replace(/[)>.,]+$/, "") : null,
-    };
-  });
-}
-
-/**
- * The research pass. Claude gets the current published shows (verified truth)
- * and the upcoming calendar events, and uses web search to produce a clean,
- * public-ready show list plus a `notes` array of things worth a human's eyes.
- * Returns { shows, notes }.
- */
-async function parseWithClaude(events, currentShowsTs) {
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const prompt = [
-    "You maintain the 'upcoming shows' list for a band's public website.",
-    "",
-    "You are given (A) the CURRENT published shows (human-verified — treat as source",
-    "of truth) and (B) upcoming events from the band's booking calendar. Produce the",
-    "new published list.",
-    "",
-    "Use web search to:",
-    "- Resolve messy calendar text into the correct public-facing VENUE name and 'City, ST'.",
-    "- Find the official ticket/event URL for a show when you can verify a real one.",
-    "",
-    "Rules:",
-    "- Output CONFIRMED public shows only. Skip holds / tentative / 'block for tour' /",
-    "  'unavailability' / travel / day-off entries.",
-    "- (A) is human-verified: KEEP its venue/city/ticketUrl for a matching show unless the",
-    "  calendar clearly indicates a change or you verify better info. NEVER drop an existing",
-    "  ticketUrl. Only spend web searches on shows that are new or missing a ticket link.",
-    "- Never invent a ticket URL. If you can't verify one, use null (the card shows 'Free').",
-    "- `note` = short extra ('with The Doomed', a festival name, etc.); else null.",
-    "- `date` is 'YYYY-MM-DD', kept from the calendar.",
-    "- Put anything a human should know in `notes`: an ambiguous venue, tickets you couldn't",
-    "  find, a calendar-vs-published mismatch and which you kept, a newly added show, or a",
-    "  show that dropped off the calendar.",
-    "",
-    "Return ONLY a JSON object, no prose, no markdown fences:",
-    '{ "shows": [ {"date": "YYYY-MM-DD", "venue": "", "city": "City, ST", "note": null, "ticketUrl": null} ], "notes": [] }',
-    "",
-    "(A) CURRENT published shows (data/shows.ts):",
-    "```ts",
-    currentShowsTs || "// (none yet)",
-    "```",
-    "",
-    "(B) Upcoming calendar events:",
-    JSON.stringify(events, null, 2),
-  ].join("\n");
-
-  const msg = await client.messages.create({
-    model: MODEL,
-    max_tokens: 8000,
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 10 }],
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("Claude returned no JSON object");
-  const parsed = JSON.parse(text.slice(start, end + 1));
-  return {
-    shows: Array.isArray(parsed.shows) ? parsed.shows : [],
-    notes: Array.isArray(parsed.notes) ? parsed.notes.map(String) : [],
-  };
-}
 
 /** Validate + normalize one show; drop anything unusable or explicitly skipped. */
 export function normalize(shows) {
@@ -397,9 +347,10 @@ export function render(shows) {
   const header = `/**
  * Upcoming shows.
  *
- * AUTO-GENERATED daily by scripts/sync-shows.mjs from the Google Calendar iCal
- * feed (with a Claude web-research pass). Manual edits are overwritten on the
- * next sync — change the calendar event instead, or adjust the script's prompt.
+ * AUTO-GENERATED by the scheduled Claude sync task (via scripts/sync-shows.mjs)
+ * from the Google Calendar iCal feed, with a web-research pass. Manual edits
+ * are overwritten on the next sync — change the calendar event instead, or
+ * adjust the task prompt (see scripts/SHOWS_SYNC_SETUP.md).
  * \`date\` is ISO (YYYY-MM-DD). Past shows are filtered out on the page. Set
  * \`ticketUrl\` to null for free / at-the-door shows; the card shows "Free".
  */
@@ -430,116 +381,49 @@ export type Show = {
   return `${header}export const shows: Show[] = [\n${blocks.join("\n")}\n];\n`;
 }
 
-/** Surface notes: Actions run summary (rich), commit-message file, and stderr. */
-async function emitNotes(notes, showCount) {
-  const summary =
-    `### 🎸 Shows sync\n\nPublished **${showCount}** show(s).\n\n` +
-    (notes.length
-      ? "**Heads up — worth a look:**\n" + notes.map((n) => `- ${n}`).join("\n") + "\n"
-      : "_Everything parsed cleanly — no notes._\n");
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    try {
-      await appendFile(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
-    } catch {}
+async function cmdWrite(inputPath) {
+  if (!inputPath) fail("usage: sync-shows.mjs write <researched.json>");
+
+  let parsed;
+  try {
+    parsed = JSON.parse(await readFile(inputPath, "utf8"));
+  } catch (err) {
+    // Fail closed: never touch published data on bad input.
+    fail("could not read researched JSON, wrote nothing: " + err.message);
   }
+  if (!Array.isArray(parsed.shows)) fail("researched JSON has no `shows` array, wrote nothing");
+  const notes = Array.isArray(parsed.notes) ? parsed.notes.map(String) : [];
+
+  const shows = normalize(parsed.shows);
+  if (parsed.shows.length && !shows.length) {
+    fail("every show failed validation (bad dates / missing venue+city?), wrote nothing");
+  }
+  const next = render(shows);
 
   const commitMsg =
     "chore: sync shows from calendar" +
     (notes.length ? "\n\nNotes:\n" + notes.map((n) => `- ${n}`).join("\n") : "") +
     "\n";
+  await writeFile(COMMIT_MSG_PATH, commitMsg, "utf8");
+
+  // Advance the change guard to the signature recorded by the last `fetch`.
   try {
-    await writeFile(COMMIT_MSG_PATH, commitMsg, "utf8");
-  } catch {}
-
-  if (notes.length) {
-    console.error("sync-shows: notes —");
-    for (const n of notes) console.error("  • " + n);
-  }
-}
-
-async function main() {
-  const { events, skippedOtherOrganizer } = await fetchEvents();
-
-  // Change guard: skip the research pass when the calendar hasn't changed.
-  // A manual "Run workflow" (or FORCE=1) always forces a full pass.
-  const signature = eventsSignature(events);
-  const force = process.env.FORCE === "1" || process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
-  let priorState = {};
-  try {
-    priorState = JSON.parse(await readFile(STATE_PATH, "utf8"));
-  } catch {}
-  const signatureChanged = priorState.signature !== signature;
-
-  if (!DRY_RUN && !force && !signatureChanged) {
-    console.error("sync-shows: calendar unchanged since last sync — skipping research pass");
-    if (process.env.GITHUB_STEP_SUMMARY) {
-      try {
-        await appendFile(
-          process.env.GITHUB_STEP_SUMMARY,
-          "### 🎸 Shows sync\n\nCalendar unchanged — nothing to do.\n\n"
-        );
-      } catch {}
+    const { signature } = JSON.parse(await readFile(LAST_FETCH_PATH, "utf8"));
+    if (signature) {
+      await writeFile(
+        STATE_PATH,
+        JSON.stringify({ signature, updatedAt: new Date().toISOString() }, null, 2) + "\n",
+        "utf8"
+      );
     }
-    return;
+  } catch {
+    console.error("sync-shows: WARNING — no .sync-last-fetch.json; change guard not advanced");
   }
 
   let currentTs = "";
   try {
     currentTs = await readFile(SHOWS_PATH, "utf8");
   } catch {}
-
-  let parsedShows;
-  let notes = [];
-
-  if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      const res = await parseWithClaude(events, currentTs);
-      parsedShows = res.shows;
-      notes = res.notes;
-    } catch (err) {
-      // Fail closed: never overwrite good published data on a smart-parse error.
-      await emitNotes(
-        ["Smart parse FAILED (" + err.message + "). Left data/shows.ts unchanged."],
-        0
-      );
-      fail("smart parse failed, left shows.ts unchanged: " + err.message);
-    }
-  } else {
-    parsedShows = parseDeterministic(events);
-    notes.push("ANTHROPIC_API_KEY not set — used the basic parser (no web research).");
-  }
-
-  // Surface real shows hidden by the organizer allow-list, so nothing vanishes silently.
-  if (skippedOtherOrganizer.length) {
-    notes.push(
-      `${skippedOtherOrganizer.length} upcoming event(s) from other organizers were skipped ` +
-        `(e.g. ${skippedOtherOrganizer.map((t) => `"${t}"`).join(", ")}). ` +
-        "If any are real shows, add that booker's email to SHOW_ORGANIZER_EMAILS."
-    );
-  }
-
-  const shows = normalize(parsedShows);
-  const next = render(shows);
-
-  await emitNotes(notes, shows.length);
-
-  if (DRY_RUN) {
-    console.error(`sync-shows: DRY_RUN — ${shows.length} show(s):`);
-    process.stdout.write(next);
-    return;
-  }
-
-  // Advance the fingerprint so an unchanged calendar skips next time.
-  if (signatureChanged) {
-    try {
-      await writeFile(
-        STATE_PATH,
-        JSON.stringify({ signature, updatedAt: new Date().toISOString() }, null, 2) + "\n",
-        "utf8"
-      );
-    } catch {}
-  }
-
   if (currentTs.trim() === next.trim()) {
     console.error("sync-shows: no changes to shows.ts");
     return;
@@ -548,7 +432,13 @@ async function main() {
   console.error(`sync-shows: wrote ${shows.length} show(s) to data/shows.ts`);
 }
 
-// Only run the network path when executed directly (not when imported for tests).
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main().catch((err) => fail(err.stack || String(err)));
+// ---------------------------------------------------------------------------
+
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+  const [cmd, arg] = process.argv.slice(2);
+  const run =
+    cmd === "fetch" ? cmdFetch() : cmd === "write" ? cmdWrite(arg) : null;
+  if (!run) fail("usage: sync-shows.mjs fetch | write <researched.json>");
+  run.catch((err) => fail(err.stack || String(err)));
 }
