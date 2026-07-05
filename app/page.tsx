@@ -1,5 +1,4 @@
 import { Hero } from "@/components/Hero";
-import { About } from "@/components/About";
 import { Shows } from "@/components/Shows";
 import { Music } from "@/components/Music";
 import { Merch } from "@/components/Merch";
@@ -13,7 +12,6 @@ export default function HomePage() {
       <Shows />
       {features.music && <Music />}
       {features.merch && <Merch />}
-      <About />
       <Contact />
     </>
   );

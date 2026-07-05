@@ -1,6 +1,6 @@
 import Image from "next/image";
 import wordmark from "@/public/images/wordmark.png";
-import { site, socials, navLinks } from "@/data/site";
+import { site, socials, navLinks, features } from "@/data/site";
 import { ArrowUpIcon, InstagramIcon, FacebookIcon, BandcampIcon } from "@/components/icons";
 
 const channels = [
@@ -31,7 +31,7 @@ export function Footer() {
               />
             </a>
             <p className="mt-4 text-sm leading-relaxed text-smoke">
-              {site.tagline}. {site.origin}.
+              {site.origin}.
             </p>
           </div>
 
@@ -66,23 +66,25 @@ export function Footer() {
         <div className="mt-12 flex flex-col gap-4 border-t border-edge pt-6 text-xs text-smoke sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {year} Hempire. All rights reserved.</p>
           <div className="flex items-center gap-5">
-            <p className="flex items-center gap-1.5 text-smoke">
-              <span>Built by</span>
-              <a
-                href="https://www.bashsquad.com/"
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label="Built by Bash Squad"
-                className="group inline-flex items-center gap-1 opacity-80 transition-opacity hover:opacity-100"
-              >
-                <span aria-hidden className="font-bold text-[#b5e853]">
-                  &gt;
-                </span>
-                <span className="font-semibold tracking-tight text-bone/90 group-hover:text-bone">
-                  bash squad
-                </span>
-              </a>
-            </p>
+            {features.builtByCredit && (
+              <p className="flex items-center gap-1.5 text-smoke">
+                <span>Built by</span>
+                <a
+                  href="https://www.bashsquad.com/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label="Built by Bash Squad"
+                  className="group inline-flex items-center gap-1 opacity-80 transition-opacity hover:opacity-100"
+                >
+                  <span aria-hidden className="font-bold text-[#b5e853]">
+                    &gt;
+                  </span>
+                  <span className="font-semibold tracking-tight text-bone/90 group-hover:text-bone">
+                    bash squad
+                  </span>
+                </a>
+              </p>
+            )}
             <a
               href="#top"
               className="group inline-flex items-center gap-1.5 font-semibold uppercase tracking-wider text-smoke transition-colors hover:text-ember"

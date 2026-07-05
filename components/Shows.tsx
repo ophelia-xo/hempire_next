@@ -1,7 +1,6 @@
 import { shows } from "@/data/shows";
 import { socials } from "@/data/site";
 import { formatShowDate, isUpcoming } from "@/lib/utils";
-import { SectionHeading } from "@/components/ui/SectionHeading";
 import { Reveal } from "@/components/Reveal";
 import { ArrowUpRight, PinIcon } from "@/components/icons";
 
@@ -11,17 +10,16 @@ export function Shows() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <section
-      id="shows"
-      className="relative scroll-mt-20 overflow-hidden bg-coal py-20 sm:py-28"
-    >
-      <div className="shell relative">
+    <section id="shows" className="scroll-mt-20 py-14 sm:py-16">
+      <div className="mx-auto w-full max-w-3xl px-6">
         <Reveal>
-          <SectionHeading title="Shows" />
+          <h2 className="border-t border-edge pt-10 text-4xl text-bone sm:text-5xl">
+            Shows
+          </h2>
         </Reveal>
 
         {upcoming.length > 0 ? (
-          <ul className="mt-12 border-t border-edge">
+          <ul className="mt-8">
             {upcoming.map((show, i) => {
               const d = formatShowDate(show.date);
               return (
@@ -29,27 +27,27 @@ export function Shows() {
                   as="li"
                   key={show.id}
                   delay={i * 90}
-                  className="group relative flex flex-col gap-4 border-b border-edge py-6 sm:flex-row sm:items-center sm:gap-8 sm:py-8"
+                  className="flex flex-col gap-3 border-b border-edge/70 py-5 sm:flex-row sm:items-center sm:gap-6"
                 >
                   {/* Date, ticket-stub style */}
-                  <div className="relative flex shrink-0 items-baseline gap-3 sm:w-36 sm:flex-col sm:items-start sm:gap-0">
-                    <span className="font-display text-6xl leading-none text-ember">
+                  <div className="flex shrink-0 items-baseline gap-2 sm:w-28 sm:flex-col sm:gap-0">
+                    <span className="font-display text-4xl leading-none text-ember">
                       {d.day}
                     </span>
-                    <span className="font-display text-2xl leading-none text-bone sm:mt-1">
+                    <span className="font-display text-xl leading-none text-bone">
                       {d.month}
                     </span>
-                    <span className="text-sm text-smoke sm:mt-1">
+                    <span className="text-xs text-smoke sm:mt-1">
                       {d.weekday} / {d.year}
                     </span>
                   </div>
 
                   {/* Venue */}
-                  <div className="relative min-w-0 flex-1">
-                    <h3 className="text-2xl text-bone sm:text-4xl">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xl text-bone sm:text-2xl">
                       {show.venue}
                     </h3>
-                    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-smoke">
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-smoke">
                       <PinIcon className="text-base text-smoke" />
                       <span>{show.city}</span>
                       {show.note && (
@@ -64,20 +62,20 @@ export function Shows() {
                   </div>
 
                   {/* CTA */}
-                  <div className="relative shrink-0">
+                  <div className="shrink-0">
                     {show.ticketUrl ? (
                       <a
                         href={show.ticketUrl}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="inline-flex items-center gap-2 rounded-full border border-edge px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-bone transition-colors duration-200 hover:border-ember hover:bg-ember hover:text-ink"
+                        className="inline-flex items-center gap-2 rounded-full border border-edge px-4 py-2 text-xs font-semibold uppercase tracking-wider text-bone transition-colors duration-200 hover:border-ember hover:bg-ember hover:text-ink"
                       >
                         Tickets
-                        <ArrowUpRight className="text-base" />
+                        <ArrowUpRight className="text-sm" />
                         <span className="sr-only">for {show.venue}</span>
                       </a>
                     ) : (
-                      <span className="inline-flex items-center rounded-full border border-edge px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-smoke">
+                      <span className="inline-flex items-center rounded-full border border-edge px-4 py-2 text-xs font-semibold uppercase tracking-wider text-smoke">
                         Free Show
                       </span>
                     )}
@@ -88,20 +86,19 @@ export function Shows() {
           </ul>
         ) : (
           <Reveal>
-            <div className="mt-12 rounded-2xl border border-edge bg-ink/40 p-10 text-center">
-              <p className="font-display text-3xl text-bone">
-                No shows on the books right now
+            <div className="mt-8 border-b border-edge/70 py-8">
+              <p className="font-display text-2xl uppercase text-bone">
+                No upcoming shows
               </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-3">
-                <a
-                  href={socials.instagram}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="rounded-full bg-ember px-6 py-3 text-sm font-semibold uppercase tracking-wider text-ink transition-colors hover:bg-ember-bright"
-                >
-                  Follow on Instagram
-                </a>
-              </div>
+              <a
+                href={socials.instagram}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-edge px-4 py-2 text-xs font-semibold uppercase tracking-wider text-bone transition-colors hover:border-ember hover:bg-ember hover:text-ink"
+              >
+                Follow on Instagram
+                <ArrowUpRight className="text-sm" />
+              </a>
             </div>
           </Reveal>
         )}

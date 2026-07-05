@@ -11,23 +11,22 @@ const channels = [
 
 export function Contact() {
   return (
-    <section
-      id="contact"
-      className="relative scroll-mt-20 overflow-hidden py-24 sm:py-32"
-    >
-      <div className="shell relative text-center">
+    <section id="contact" className="scroll-mt-20 py-14 sm:pb-24 sm:pt-16">
+      <div className="mx-auto w-full max-w-3xl px-6">
         <Reveal>
-          <h2 className="display-2 text-bone">Booking Inquiries</h2>
+          <h2 className="border-t border-edge pt-10 text-4xl text-bone sm:text-5xl">
+            Booking Inquiries
+          </h2>
         </Reveal>
 
         <Reveal delay={120}>
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex justify-start">
             <CopyEmail email={site.email} />
           </div>
         </Reveal>
 
         <Reveal delay={220}>
-          <div className="mt-12 flex items-center justify-center gap-4">
+          <div className="mt-10 flex items-center gap-4">
             {channels.map(({ label, href, Icon }) => (
               <a
                 key={label}
@@ -35,9 +34,9 @@ export function Contact() {
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={`Hempire on ${label}`}
-                className="flex h-14 w-14 items-center justify-center rounded-full border border-edge text-bone transition-colors duration-200 hover:border-ember hover:text-ember"
+                className="flex h-12 w-12 items-center justify-center rounded-full border border-edge text-bone transition-colors duration-200 hover:border-ember hover:text-ember"
               >
-                <Icon className="text-2xl" />
+                <Icon className="text-xl" />
               </a>
             ))}
           </div>
