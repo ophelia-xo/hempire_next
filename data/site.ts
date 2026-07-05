@@ -10,7 +10,7 @@ export const site = {
   origin: "Asheville, North Carolina",
   // Short description used for SEO and the page header.
   description:
-    "Hempire is a rock and roll band based in Asheville, North Carolina. Heavy riffs, mountain fuzz, and a whole lot of volume.",
+    "Hempire is a rock and roll band from Asheville, North Carolina.",
   url: "https://hempirerocks.com",
   email: "hempirerocks@gmail.com",
 } as const;
@@ -21,12 +21,21 @@ export const socials = {
   facebook: "https://www.facebook.com/hempirerocks",
 } as const;
 
+/**
+ * Feature flags. Flip one to true and the section, along with its nav
+ * links, comes back — no other changes needed.
+ */
+export const features: { music: boolean; merch: boolean } = {
+  music: false,
+  merch: false,
+};
+
 export type NavLink = { label: string; href: string };
 
 export const navLinks: NavLink[] = [
   { label: "Shows", href: "#shows" },
-  { label: "Music", href: "#music" },
-  { label: "Merch", href: "#merch" },
+  ...(features.music ? [{ label: "Music", href: "#music" }] : []),
+  ...(features.merch ? [{ label: "Merch", href: "#merch" }] : []),
   { label: "Band", href: "#band" },
   { label: "Contact", href: "#contact" },
 ];

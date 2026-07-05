@@ -14,15 +14,6 @@ export function Footer() {
 
   return (
     <footer className="relative overflow-hidden border-t border-edge bg-ink">
-      {/* Giant outlined sign-off, edge to edge like the back of a tour tee */}
-      <div
-        aria-hidden
-        className="pointer-events-none select-none pt-10 text-center font-display uppercase leading-[0.8] text-outline"
-        style={{ fontSize: "clamp(4rem, 15vw, 14rem)" }}
-      >
-        Hempire
-      </div>
-
       <div className="shell py-14">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
@@ -40,7 +31,7 @@ export function Footer() {
               />
             </a>
             <p className="mt-4 text-sm leading-relaxed text-smoke">
-              {site.tagline}. Rock and roll out of {site.origin}.
+              {site.tagline}. {site.origin}.
             </p>
           </div>
 

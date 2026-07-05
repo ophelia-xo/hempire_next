@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type SectionHeadingProps = {
-  kicker: string;
+  kicker?: string;
   title: ReactNode;
   description?: ReactNode;
   align?: "left" | "center";
@@ -24,10 +24,12 @@ export function SectionHeading({
         className,
       )}
     >
-      <p className={cn("kicker", align === "center" && "justify-center")}>
-        {kicker}
-      </p>
-      <h2 className="display-2 mt-4 text-bone">{title}</h2>
+      {kicker && (
+        <p className={cn("kicker", align === "center" && "justify-center")}>
+          {kicker}
+        </p>
+      )}
+      <h2 className={cn("display-2 text-bone", kicker && "mt-4")}>{title}</h2>
       {description && (
         <p className="mt-5 text-base leading-relaxed text-smoke sm:text-lg">
           {description}

@@ -21,13 +21,6 @@
   /* Type */
   --font-display: var(--font-anton), "Arial Narrow", system-ui, sans-serif;
   --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
-
-  /* Motion */
-  --animate-marquee: marquee 60s linear infinite;
-  --animate-marquee-reverse: marquee-reverse 80s linear infinite;
-  --animate-cue: cue 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
-  --animate-breathe: breathe 7s ease-in-out infinite;
-  --animate-spin-slow: rotate 9s linear infinite;
 }
 
 /* ------------------------------------------------------------------ *
@@ -133,35 +126,9 @@
   }
 }
 
-/* Fluid display sizes */
-@utility display-1 {
-  font-size: clamp(3.25rem, 13vw, 11rem);
-}
+/* Fluid display size */
 @utility display-2 {
   font-size: clamp(2.5rem, 7vw, 5.25rem);
-}
-
-/* Outlined "ghost" type, transparent fill with a hairline stroke */
-@utility text-outline {
-  color: transparent;
-  -webkit-text-stroke: 1px rgb(244 240 230 / 0.14);
-}
-
-/* Enormous background word pinned to a section corner. Decorative only. */
-@utility ghost-word {
-  position: absolute;
-  top: 0.5rem;
-  right: -0.06em;
-  z-index: 0;
-  font-family: var(--font-display);
-  font-size: clamp(7rem, 24vw, 22rem);
-  line-height: 0.8;
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: transparent;
-  -webkit-text-stroke: 1px rgb(244 240 230 / 0.06);
-  pointer-events: none;
-  user-select: none;
 }
 
 /* Hairline texture for film-grain / poster grit */
@@ -177,33 +144,6 @@
   }
 }
 
-/* A record sleeve's worth of vinyl, drawn in CSS. Slides out on hover. */
-@utility vinyl {
-  border-radius: 9999px;
-  background:
-    radial-gradient(
-      circle at center,
-      var(--color-ember-deep) 0 10%,
-      #050505 10.5% 12.5%,
-      transparent 13%
-    ),
-    /* a streak of light across the grooves so the disc reads in the dark */
-      linear-gradient(
-        145deg,
-        transparent 30%,
-        rgb(244 240 230 / 0.05) 45%,
-        transparent 60%
-      ),
-    repeating-radial-gradient(
-      circle at center,
-      #131316 0 2.5px,
-      #26262c 3px 5.5px
-    );
-  box-shadow:
-    0 0 0 1px rgb(244 240 230 / 0.12),
-    0 24px 60px -12px rgb(0 0 0 / 0.8);
-}
-
 /* ------------------------------------------------------------------ *
  *  Motion system
  * ------------------------------------------------------------------ */
@@ -214,11 +154,6 @@
     opacity: 0;
     animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     animation-delay: var(--d, 0s);
-  }
-
-  /* Slow settle on the hero photo, cinema-style */
-  .hero-zoom {
-    animation: hero-zoom 7s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   /* Mobile menu items cascade in each time the menu opens */
@@ -263,24 +198,6 @@ body::after {
 /* ------------------------------------------------------------------ *
  *  Keyframes
  * ------------------------------------------------------------------ */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes marquee-reverse {
-  from {
-    transform: translateX(-50%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
 @keyframes rise {
   from {
     opacity: 0;
@@ -289,48 +206,6 @@ body::after {
   to {
     opacity: 1;
     transform: none;
-  }
-}
-
-@keyframes hero-zoom {
-  from {
-    transform: scale(1.08);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-/* Scroll cue: a spark of ember running down a hairline */
-@keyframes cue {
-  0% {
-    transform: translateY(-100%);
-  }
-  65% {
-    transform: translateY(100%);
-  }
-  100% {
-    transform: translateY(100%);
-  }
-}
-
-/* Slow opacity breathe for watermarks */
-@keyframes breathe {
-  0%,
-  100% {
-    opacity: 0.04;
-  }
-  50% {
-    opacity: 0.08;
-  }
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
   }
 }
 

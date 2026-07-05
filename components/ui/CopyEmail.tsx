@@ -107,9 +107,6 @@ export function CopyEmail({ email }: { email: string }) {
       <span aria-live="polite" className="sr-only">
         {copied ? "Email address copied to clipboard" : ""}
       </span>
-      <span className="text-xs text-smoke">
-        {copied ? "Paste it into your email app" : "Click to copy"}
-      </span>
     </div>
   );
 }
